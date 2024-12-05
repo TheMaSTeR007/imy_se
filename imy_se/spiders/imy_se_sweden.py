@@ -66,14 +66,10 @@ def get_published_date(news_container_div) -> str:
     return published_date if published_date != '' else 'N/A'
 
 
-# def get_description(news_container_div):
-#     description = ' '.join(news_container_div.xpath('./div[contains(@class, "imy-newspage__preamble") or contains(@class, "imy-newspage__content") and not ()]//text()')).strip()
-#     return clean_text(description) if description != '' else 'N/A'
-
 def get_description(news_container_div):
     description = ' '.join(
         news_container_div.xpath(
-            './div[contains(@class, "imy-newspage__preamble") or (contains(@class, "imy-newspage__content") and not(.//p[strong]))]//text()'
+            './div[contains(@class, "imy-newspage__preamble")]//text() | ./div[contains(@class, "imy-newspage__content")]//p[not(strong or a) and not(contains(text(), "+")) and not(contains(text(), "For further information, please contact"))]//text()'
         )
     ).strip()
     # importrant xpath
@@ -104,16 +100,46 @@ def get_pdf_url(news_container_div):
     return pdf_url if pdf_url != '' else 'N/A'
 
 
+# def get_contact_details(news_container_div):
+#     contact_details = news_container_div.xpath('./div[contains(@class, "imy-newspage__content")]/p[strong]/following-sibling::p/text()')
+#     contact_name_list = []
+#     contact_telephone_list = []
+#     for contact_text in contact_details:
+#         contact_name_list.append(' '.join(contact_text.split(',')[:-1]).strip())
+#         contact_telephone_list.append(contact_text.split(',')[-1].replace('telephone ', '').replace('phone', '').replace('\u3000', ' ').strip())
+#
+#     contact_dict = {'contact_name': ' | '.join(contact_name_list) if contact_name_list != [] else 'N/A',
+#                     'contact_telephone': ' | '.join(contact_telephone_list) if contact_telephone_list != [] else 'N/A'}
+#     return contact_dict
+
+
 def get_contact_details(news_container_div):
-    contact_details = news_container_div.xpath('./div[contains(@class, "imy-newspage__content")]/p[strong]/following-sibling::p/text()')
+    # XPath to extract contact details
+    # contact_details = news_container_div.xpath('./div[contains(@class, "imy-newspage__content")]/p[contains(text(), "For further information")]/following-sibling::p/text()')
+
+    # contact_details = news_container_div.xpath('./div[contains(@class, "imy-newspage__content")]/p[contains(text(), "phone") or contains(text(), "+")]/text()')
+    contact_details = news_container_div.xpath('./div[contains(@class, "imy-newspage__content")]//p[contains(normalize-space(), "phone") or contains(normalize-space(), "telephone") or contains(normalize-space(), "+")]//text()')
+    print(contact_details)
+
+    # Regex for extracting name and phone number
+    contact_regex = re.compile(r"(?P<name>.*?)(?:,|\s-\s)?(?:telephone|phone)?\s*(?P<number>\+[\d\s-]+)")
+
     contact_name_list = []
     contact_telephone_list = []
-    for contact_text in contact_details:
-        contact_name_list.append(' '.join(contact_text.split(',')[:-1]).strip())
-        contact_telephone_list.append(contact_text.split(',')[-1].replace('telephone ', '').replace('phone', '').replace('\u3000', ' ').strip())
 
-    contact_dict = {'contact_name': ' | '.join(contact_name_list) if contact_name_list != [] else 'N/A',
-                    'contact_telephone': ' | '.join(contact_telephone_list) if contact_telephone_list != [] else 'N/A'}
+    for contact_text in contact_details:
+        match = contact_regex.search(contact_text.strip())
+        if match:
+            contact_name = match.group('name').replace(',', '').replace(':', '').strip()
+            contact_number = match.group('number').replace(',', '').replace(':', '').strip()
+            contact_name_list.append(contact_name)
+            contact_telephone_list.append(contact_number)
+
+    contact_dict = {
+        'contact_name': ' | '.join(contact_name_list) if contact_name_list else 'N/A',
+        'contact_telephone': ' | '.join(contact_telephone_list) if contact_telephone_list else 'N/A'
+    }
+    print(contact_dict)
     return contact_dict
 
 
@@ -138,21 +164,7 @@ class ImySeSwedenSpider(scrapy.Spider):
         self.filename = fr"{self.excel_path}/{self.name}.xlsx"  # Filename with Scrape Date
 
         self.browsers = ["chrome110", "edge99", "safari15_5"]
-        # self.headers = {
-        #     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        #     'Accept-Language': 'en-US,en;q=0.9',
-        #     'Cache-Control': 'max-age=0',
-        #     'Connection': 'keep-alive',
-        #     'Sec-Fetch-Dest': 'document',
-        #     'Sec-Fetch-Mode': 'navigate',
-        #     'Sec-Fetch-Site': 'none',
-        #     'Sec-Fetch-User': '?1',
-        #     'Upgrade-Insecure-Requests': '1',
-        #     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-        #     'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        #     'sec-ch-ua-mobile': '?0',
-        #     'sec-ch-ua-platform': '"Windows"',
-        # }
+
         self.headers = {
             'Accept': '*/*',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -168,8 +180,6 @@ class ImySeSwedenSpider(scrapy.Spider):
         }
 
     def start_requests(self) -> Iterable[Request]:
-        # url = 'https://www.imy.se/en/news/?query=fined'
-
         params = {
             'query': 'fined',
             'selectedSection': '',
