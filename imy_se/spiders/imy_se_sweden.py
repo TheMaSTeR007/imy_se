@@ -234,18 +234,20 @@ class ImySeSwedenSpider(scrapy.Spider):
 
     def close(self, reason):
         print("Converting List of Dictionaries into DataFrame, then into Excel file...")
-        try:
-            print("Creating Native sheet...")
-            data_df = pd.DataFrame(self.final_data_list)
-            with pd.ExcelWriter(path=self.filename, engine='xlsxwriter', engine_kwargs={"options": {'strings_to_urls': False}}) as writer:
-                data_df.insert(loc=0, column='id', value=range(1, len(data_df) + 1))  # Add 'id' column at position 1
-                data_df.to_excel(excel_writer=writer, index=False)
-            print("Native Excel file Successfully created.")
-        except Exception as e:
-            print('Error while Generating Native Excel file:', e)
+        if self.final_data_list:
+            try:
+                print("Creating Native sheet...")
+                data_df = pd.DataFrame(self.final_data_list)
+                with pd.ExcelWriter(path=self.filename, engine='xlsxwriter', engine_kwargs={"options": {'strings_to_urls': False}}) as writer:
+                    data_df.insert(loc=0, column='id', value=range(1, len(data_df) + 1))  # Add 'id' column at position 1
+                    data_df.to_excel(excel_writer=writer, index=False)
+                print("Native Excel file Successfully created.")
+            except Exception as e:
+                print('Error while Generating Native Excel file:', e)
+        else:
+            print('Final-Data-List is empty, Hence not generating Excel File.')
         if self.api.is_connected:  # Disconnecting VPN if it's still connected
             self.api.disconnect()
-
         end = time.time()
         print(f'Scraping done in {end - self.start} seconds.')
 
